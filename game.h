@@ -54,7 +54,6 @@ typedef struct {
 
 
     // MODE DE JEU ?
-    bool mode;
     int modeJeu;
 } Jeu ;
 
