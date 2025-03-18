@@ -56,6 +56,8 @@ typedef struct {
     // Network-related variables
     bool isConnected;
     bool networkReady;
+    int connectedClients;
+    int requiredClients;
     char a;  // Your global variable from client.c
 } Jeu ;
 

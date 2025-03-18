@@ -1,6 +1,21 @@
 
 #include "server.h"
 
+void updateClientCount(Jeu* game, int count) {
+    game->connectedClients = count;
+}
+
+void broadcastClientCount(Jeu* game, SOCKET* client_fds, int nb_clients) {
+    char message[100];
+    sprintf(message, "PlayerCount:%d\n", nb_clients);
+
+    for (int i = 0; i < MAX_CLIENTS; i++) {
+        if (client_fds[i] != INVALID_SOCKET) {
+            send(client_fds[i], message, (int)strlen(message), 0);
+        }
+    }
+}
+
 
 DWORD WINAPI server_thread(LPVOID data) {
     NetworkThreadData* threadData = (NetworkThreadData*)data;
@@ -71,10 +86,17 @@ DWORD WINAPI server_thread(LPVOID data) {
                 printf("New player connected: %s\n", inet_ntoa(client_addr.sin_addr));
                 (*nb_clients)++;
 
+                // Update the game's client count
+                updateClientCount(game, *nb_clients);
+
+                // Broadcast the new client count to all clients
+                broadcastClientCount(game, client_fds, *nb_clients);
+
                 // Send initial game state
                 sprintf(buffer, "Mise a jour du jeu initial\n");
                 send(new_socket, buffer, (int)strlen(buffer), 0);
             }
+
         }
 
         // Send periodic game updates

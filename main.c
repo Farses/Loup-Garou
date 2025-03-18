@@ -22,6 +22,8 @@ void init(Jeu* game, float width, float height){
     game->mouse_y= 0 ;
     game->isConnected = false;
     game->networkReady = false;
+    game->connectedClients = 0;
+    game->requiredClients = 2; // Set to your desired player count requirement
 }
 
 void game_event(Jeu* game){
@@ -187,7 +189,6 @@ int main() {
             }
         }
 
-        ///FONCTIONNE PAS ENCORE
         if ((jeu.modeJeu == 1 || jeu.modeJeu == 2) && !jeu.networkReady) {
             // Show loading screen
             al_clear_to_color(black);
@@ -209,37 +210,37 @@ int main() {
                 al_clear_to_color(black);
                 al_draw_text(subtitle_font, white, jeu.width/2, jeu.height/2, ALLEGRO_ALIGN_CENTER,
                              "Connection failed. Press ESC to return to menu.");
-                al_draw_textf(subtitle_font, white, 50, 50, ALLEGRO_ALIGN_LEFT,
-                             "mode is %d", jeu.modeJeu);
-                if(jeu.mouseIsPressed == true) {
-                    al_draw_text(subtitle_font, white, 50, 125, ALLEGRO_ALIGN_LEFT,
-                                  "TRUE");
-                }
-                else {
-                    al_draw_text(subtitle_font, white, 50, 125, ALLEGRO_ALIGN_LEFT,
-                                 "FALSE");
-                }
-
                 al_flip_display();
 
-                // Wait for ESC key
                 bool backToMenu = false;
                 while (!backToMenu && !isFin) {
                     al_wait_for_event(queue, &event);
-                    if (event.type == ALLEGRO_EVENT_KEY_DOWN && event.keyboard.keycode == ALLEGRO_KEY_ESCAPE) {
-                        jeu.modeJeu = 0;
-                        backToMenu = true;
+                    switch (event.type) {
+                        case ALLEGRO_EVENT_MOUSE_BUTTON_UP: {
+                            if ((event.mouse.button & 1) == 1) {
+                                jeu.mouseIsPressed = false;
+                            }
+                            break;
+                        }
+                        case ALLEGRO_EVENT_KEY_DOWN : {
+                            switch (event.keyboard.keycode) {
+                                case ALLEGRO_KEY_ESCAPE : {
+                                    jeu.modeJeu = 0;
+                                    backToMenu = true;
+                                    break;
+                                }
+                            }
+                            break;
+                        }
                     }
                 }
-                isFin =0 ;
-                jeu.modeJeu = 0;
 
                 continue;
             }
         }
 
         ///JOUER
-        while (!isFin) {
+        while ((jeu.modeJeu == 1 || jeu.modeJeu == 2) && jeu.networkReady && !isFin) {
             al_wait_for_event(queue, &event);
             switch (event.type) {
                 case ALLEGRO_EVENT_KEY_DOWN : {
@@ -280,6 +281,47 @@ int main() {
                 }
             }
             if (draw) {
+                if (jeu.isConnected) {
+                    al_draw_text(text_font, white, 20, 20, ALLEGRO_ALIGN_LEFT,
+                                 jeu.modeJeu == 1 ? "Connected to server" : "Server running");
+
+                    char playerCountText[100];
+                    sprintf(playerCountText, "Joueurs: %d - %d", jeu.connectedClients, jeu.requiredClients);
+                    al_draw_text(text_font, white, 20, 60, ALLEGRO_ALIGN_LEFT, playerCountText);
+
+                    // Check if enough players are connected
+                    if (jeu.connectedClients >= jeu.requiredClients) {
+                        // Game can now proceed
+                        al_draw_text(text_font, al_map_rgb(0, 255, 0), jeu.width/2, 100, ALLEGRO_ALIGN_CENTER,
+                                     "All players connected! Game ready to start.");
+
+                        // Add your game start logic here
+                        // For example, you might want to draw a "Start Game" button
+                        if (jeu.modeJeu == 2) { // Server mode
+                            al_draw_filled_rectangle(jeu.width/2 - 100, 150, jeu.width/2 + 100, 200, al_map_rgb(0, 100, 0));
+                            al_draw_text(text_font, white, jeu.width/2, 165, ALLEGRO_ALIGN_CENTER, "Start Game");
+
+                            // Check if the start button is clicked
+                            if (jeu.mouseIsPressed &&
+                                jeu.mouse_x >= jeu.width/2 - 100 && jeu.mouse_x <= jeu.width/2 + 100 &&
+                                jeu.mouse_y >= 150 && jeu.mouse_y <= 200) {
+                                // Send game start message to all clients
+                                // This could call a function like: startGame(&jeu);
+                            }
+                        } else { // Client mode
+                            al_draw_text(text_font, white, jeu.width/2, 150, ALLEGRO_ALIGN_CENTER,
+                                         "Waiting for server to start the game...");
+                        }
+                    } else {
+                        // Not enough players yet
+                        al_draw_text(text_font, al_map_rgb(255, 255, 0), jeu.width/2, 100, ALLEGRO_ALIGN_CENTER,
+                                     "Waiting for more players to connect...");
+                    }
+                } else {
+                    al_draw_text(text_font, al_map_rgb(255, 0, 0), 20, 20, ALLEGRO_ALIGN_LEFT,
+                                 "Connection lost");
+                }
+
 
                 al_flip_display();
                 al_clear_to_color(black);
