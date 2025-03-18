@@ -2,6 +2,8 @@
 #ifndef AAAAAAAAAA_GAME_H
 #define AAAAAAAAAA_GAME_H
 
+
+
 ///INCLUDE
 #include <allegro5/allegro.h>
 #include <allegro5/allegro_primitives.h>
@@ -39,22 +41,30 @@ typedef struct {
     float width, height ;       // Info écran
     int mouse_x, mouse_y ;
     bool mouseIsPressed;
-
     //STRUCTURE
 
-
     //GRILLE
-
 
     //TEMPS
     Temps time[2];
 
-
     //BITMAP
 
-
-    // MODE DE JEU ?
+    // MODE DE JEU
     int modeJeu;
+
+    // Network-related variables
+    bool isConnected;
+    bool networkReady;
+    char a;  // Your global variable from client.c
 } Jeu ;
+
+typedef struct {
+    Jeu* game;
+    SOCKET sock;  // For client mode
+    SOCKET* client_fds;  // For server mode
+    int* nb_clients;
+} NetworkThreadData;
+
 
 #endif //AAAAAAAAAA_GAME_H

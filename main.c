@@ -9,8 +9,9 @@
 #include  "font.h"
 
 
-
 #pragma comment(lib, "ws2_32.lib")
+
+
 
 void init(Jeu* game, float width, float height){
     game->width = width ;
@@ -19,6 +20,8 @@ void init(Jeu* game, float width, float height){
     game->mouseIsPressed = false ;
     game->mouse_x= 0 ;
     game->mouse_y= 0 ;
+    game->isConnected = false;
+    game->networkReady = false;
 }
 
 void game_event(Jeu* game){
@@ -135,8 +138,7 @@ int main() {
     ///2 BOUCLE WHILE : 1 pour le menu, 1 pour le jeu (conditions dans le while à changer !!)
     while (!isFin) {
         ///MENU DU JEU
-        while (jeu.modeJeu == 0) {
-
+        while (jeu.modeJeu == 0 && !isFin) {
             al_wait_for_event(queue, &event);
             switch (event.type) {
                 case ALLEGRO_EVENT_KEY_DOWN : {
@@ -185,6 +187,57 @@ int main() {
             }
         }
 
+        ///FONCTIONNE PAS ENCORE
+        if ((jeu.modeJeu == 1 || jeu.modeJeu == 2) && !jeu.networkReady) {
+            // Show loading screen
+            al_clear_to_color(black);
+            al_draw_text(subtitle_font, white, jeu.width/2, jeu.height/2, ALLEGRO_ALIGN_CENTER,
+                         jeu.modeJeu == 1 ? "Connecting to server..." : "Starting server...");
+            al_flip_display();
+
+            // Initialize network
+            int success = 0;
+            if (jeu.modeJeu == 1) {
+                success = initClientMode(&jeu);
+            }
+            else if (jeu.modeJeu == 2) {
+                success = initServerMode(&jeu);
+            }
+
+            if (!success) {
+                // Connection failed
+                al_clear_to_color(black);
+                al_draw_text(subtitle_font, white, jeu.width/2, jeu.height/2, ALLEGRO_ALIGN_CENTER,
+                             "Connection failed. Press ESC to return to menu.");
+                al_draw_textf(subtitle_font, white, 50, 50, ALLEGRO_ALIGN_LEFT,
+                             "mode is %d", jeu.modeJeu);
+                if(jeu.mouseIsPressed == true) {
+                    al_draw_text(subtitle_font, white, 50, 125, ALLEGRO_ALIGN_LEFT,
+                                  "TRUE");
+                }
+                else {
+                    al_draw_text(subtitle_font, white, 50, 125, ALLEGRO_ALIGN_LEFT,
+                                 "FALSE");
+                }
+
+                al_flip_display();
+
+                // Wait for ESC key
+                bool backToMenu = false;
+                while (!backToMenu && !isFin) {
+                    al_wait_for_event(queue, &event);
+                    if (event.type == ALLEGRO_EVENT_KEY_DOWN && event.keyboard.keycode == ALLEGRO_KEY_ESCAPE) {
+                        jeu.modeJeu = 0;
+                        backToMenu = true;
+                    }
+                }
+                isFin =0 ;
+                jeu.modeJeu = 0;
+
+                continue;
+            }
+        }
+
         ///JOUER
         while (!isFin) {
             al_wait_for_event(queue, &event);
@@ -193,18 +246,6 @@ int main() {
                     switch (event.keyboard.keycode) {
                         case ALLEGRO_KEY_ESCAPE : {
                             isFin = 1;
-                            break;
-                        }
-                        case ALLEGRO_KEY_Z : {
-                            break;
-                        }
-                        case ALLEGRO_KEY_S : {
-                            break;
-                        }
-                        case ALLEGRO_KEY_D : {
-                            break;
-                        }
-                        case ALLEGRO_KEY_Q: {
                             break;
                         }
                     }
@@ -246,5 +287,12 @@ int main() {
             }
         }
     }
+
+
+    if (jeu.isConnected) {
+        jeu.isConnected = false;
+        Sleep(500); // Give threads time to clean up
+    }
+
     return 0;
 }

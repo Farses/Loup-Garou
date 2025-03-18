@@ -7,8 +7,7 @@
 
 #include "game.h"
 
-void client() ;
-
-
+DWORD WINAPI client_receive_thread(LPVOID data) ;
+int initClientMode(Jeu* game) ;
 
 #endif //AAAAAAAAAA_CLIENT_H

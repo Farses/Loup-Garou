@@ -30,7 +30,7 @@ void load_responsive_fonts(int screen_width, int screen_height, ALLEGRO_FONT **t
     // Vérifier si les polices ont été chargées correctement
     if (!*title_font || !*subtitle_font || !*text_font || !*small_font) {
         fprintf(stderr, "Erreur: Impossible de charger les polices.\n");
-        // Gérer l'erreur selon vos besoins (exit, fallback, etc.)
+
     }
 }
 
