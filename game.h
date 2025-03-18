@@ -21,6 +21,41 @@
 ///DEFINE
 #define PORT 8080
 #define MAX_CLIENTS 2
+#define PI 3.14159265358979323846
 
+
+
+///STRUCTURE ET ENUM
+enum ROLE{VILLAGEOIS, LOUP, SORCIERE, PETITE_FILLE, MEDECIN};
+
+
+typedef struct{
+    float dixieme ;
+    int secondes, minutes ;
+} Temps ;
+
+
+typedef struct {
+    float width, height ;       // Info écran
+    int mouse_x, mouse_y ;
+    bool mouseIsPressed;
+
+    //STRUCTURE
+
+
+    //GRILLE
+
+
+    //TEMPS
+    Temps time[2];
+
+
+    //BITMAP
+
+
+    // MODE DE JEU ?
+    bool mode;
+    int modeJeu;
+} Jeu ;
 
 #endif //AAAAAAAAAA_GAME_H
