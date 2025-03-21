@@ -5,12 +5,15 @@
 
 
 #include "game.h"
+#include "network.h"
 
 
-void sendGameUpdate(Jeu* game, SOCKET* client_fds, int nb_clients, const char* update) ;
 DWORD WINAPI server_thread(LPVOID data) ;
 int initServerMode(Jeu* game) ;
 void updateClientCount(Jeu* game, int count) ;
-void broadcastClientCount(Jeu* game, SOCKET* client_fds, int nb_clients) ;
+
+
+///SENDING FUNCTIONS
+void sendPlayerCount(NetworkState* netState, int count) ;
 
 #endif //AAAAAAAAAA_SERVER_H

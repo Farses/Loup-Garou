@@ -1,53 +1,6 @@
 #include "client.h"
 
 
-
-char a; // Déclaration de la variable globale 'a'
-
-
-DWORD WINAPI client_receive_thread(LPVOID data) {
-    NetworkThreadData* threadData = (NetworkThreadData*)data;
-    Jeu* game = threadData->game;
-    SOCKET sock = threadData->sock;
-    char buffer[1024];
-    int result;
-
-    while (game->isConnected) {
-        memset(buffer, 0, sizeof(buffer));
-        result = recv(sock, buffer, sizeof(buffer), 0);
-        if (result > 0) {
-            printf("Message received: %s", buffer);
-            if (buffer[0] == 'a' && buffer[1] == '-') {
-                game->a = buffer[2];
-                printf("Modified a = %c\n", game->a);
-            }
-            else if (buffer[0] == 'M' && buffer[1] == 'i') {
-                printf("Update received: %s\n", buffer);
-                // Handle game state updates here
-            }
-            else if (strncmp(buffer, "PlayerCount:", 12) == 0) {
-                // Extract player count from message
-                int count = atoi(buffer + 12);
-                game->connectedClients = count;
-                printf("Player count updated: %d\n", count);
-            }
-        }
-        else if (result == 0) {
-            printf("Connection closed by server\n");
-            break;
-        }
-        else {
-            printf("recv failed: %d\n", WSAGetLastError());
-            break;
-        }
-    }
-
-    closesocket(sock);
-    game->isConnected = false;
-    free(threadData);
-    return 0;
-}
-
 // Initialize client connection and create a listening thread
 int initClientMode(Jeu* game) {
     WSADATA wsaData;
@@ -104,4 +57,50 @@ int initClientMode(Jeu* game) {
 
     game->networkReady = true;
     return 1;
+}
+
+
+DWORD WINAPI client_receive_thread(LPVOID data) {
+    NetworkThreadData* threadData = (NetworkThreadData*)data;
+    Jeu* game = threadData->game;
+    SOCKET sock = threadData->sock;
+    NetworkState* netState = game->networkState;  // Assume you've added this to Jeu struct
+
+    char buffer[1024];
+    int result;
+
+    if (!netState) {
+        game->networkState = initNetworkState();
+        netState = game->networkState;
+    }
+    while (game->isConnected) {
+        unsigned char datafornothing[1] = { 0x00} ;
+        queueMessage(netState, MSG_TYPE_NOTHING, datafornothing, 1 ) ;
+        memset(buffer, 0, sizeof(buffer));
+        result = recv(sock, buffer, sizeof(buffer), 0);
+        if (result > 0) {
+            handleIncomingMessage(netState, buffer, result);
+        }
+        else if (result == 0) {
+            printf("Connection closed by server\n");
+            break;
+        }
+        else {
+            int err = WSAGetLastError();
+            if (err != WSAEWOULDBLOCK) {
+                printf("recv failed: %d\n", err);
+                break;
+            }
+        }
+
+
+        sendQueuedMessages(netState, sock);
+        // Small sleep to prevent CPU hogging
+        Sleep(5);
+    }
+
+    closesocket(sock);
+    game->isConnected = false;
+    free(threadData);
+    return 0;
 }

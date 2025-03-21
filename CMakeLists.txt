@@ -15,6 +15,6 @@ if(WIN32)
     link_libraries(ws2_32 wsock32)
 endif()
 
-add_executable(aaaaaaaaaa main.c server.c server.h client.c client.h game.h font.c font.h)
+add_executable(aaaaaaaaaa main.c server.c server.h client.c client.h game.h font.c font.h jeu.c jeu.h network.c network.h)
 
 target_link_libraries(aaaaaaaaaa -lallegro-5.0.10-monolith-md-debug)

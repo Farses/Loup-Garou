@@ -1,22 +1,59 @@
 
 #include "server.h"
 
+
+
+/// CLIENT COUNT
 void updateClientCount(Jeu* game, int count) {
     game->connectedClients = count;
 }
 
-void broadcastClientCount(Jeu* game, SOCKET* client_fds, int nb_clients) {
-    char message[100];
-    sprintf(message, "PlayerCount:%d\n", nb_clients);
 
-    for (int i = 0; i < MAX_CLIENTS; i++) {
-        if (client_fds[i] != INVALID_SOCKET) {
-            send(client_fds[i], message, (int)strlen(message), 0);
-        }
-    }
+
+void sendPlayerCount(NetworkState* netState, int count) {
+    unsigned char data[1] = { (unsigned char)count };
+    queueMessage(netState, MSG_TYPE_PLAYER_COUNT, data, 1);
 }
 
 
+
+
+// Initialize server mode and create a server thread
+int initServerMode(Jeu* game) {
+    HANDLE thread_handle;
+    SOCKET* client_fds = (SOCKET*)malloc(MAX_CLIENTS * sizeof(SOCKET));
+    int* nb_clients = (int*)malloc(sizeof(int));
+
+    *nb_clients = 0;
+
+    // Initialize client sockets array
+    for (int i = 0; i < MAX_CLIENTS; i++) {
+        client_fds[i] = INVALID_SOCKET;
+    }
+
+    NetworkThreadData* threadData = (NetworkThreadData*)malloc(sizeof(NetworkThreadData));
+    threadData->game = game;
+    threadData->client_fds = client_fds;
+    threadData->nb_clients = nb_clients;
+
+    thread_handle = CreateThread(NULL, 0, server_thread, threadData, 0, NULL);
+    if (thread_handle == NULL) {
+        printf("Failed to create server thread\n");
+        free(client_fds);
+        free(nb_clients);
+        free(threadData);
+        return 0;
+    }
+
+    // We don't need to keep the handle since the thread will clean itself up
+    CloseHandle(thread_handle);
+
+    game->networkReady = true;
+    return 1;
+}
+
+
+///SERVER THREAD
 DWORD WINAPI server_thread(LPVOID data) {
     NetworkThreadData* threadData = (NetworkThreadData*)data;
     Jeu* game = threadData->game;
@@ -29,6 +66,9 @@ DWORD WINAPI server_thread(LPVOID data) {
     int addr_len = sizeof(client_addr);
     char buffer[1024];
     int result;
+
+
+    NetworkState* netState = game->networkState;
 
     // Initialize Winsock
     result = WSAStartup(MAKEWORD(2, 2), &wsaData);
@@ -73,6 +113,7 @@ DWORD WINAPI server_thread(LPVOID data) {
     while (game->isConnected) {
         // Accept new clients if there's room
         if (*nb_clients < MAX_CLIENTS) {
+
             SOCKET new_socket = accept(server_fd, (struct sockaddr*)&client_addr, &addr_len);
             if (new_socket != INVALID_SOCKET) {
                 // Add new client to array
@@ -84,32 +125,43 @@ DWORD WINAPI server_thread(LPVOID data) {
                 }
 
                 printf("New player connected: %s\n", inet_ntoa(client_addr.sin_addr));
-                (*nb_clients)++;
 
-                // Update the game's client count
-                updateClientCount(game, *nb_clients);
+                game->connectedClients++ ;
+                sendPlayerCount(game->networkState, game->connectedClients);
 
-                // Broadcast the new client count to all clients
-                broadcastClientCount(game, client_fds, *nb_clients);
-
-                // Send initial game state
-                sprintf(buffer, "Mise a jour du jeu initial\n");
-                send(new_socket, buffer, (int)strlen(buffer), 0);
             }
 
         }
 
-        // Send periodic game updates
-        if (*nb_clients > 0 && game->networkReady) {
-            sprintf(buffer, "Mise a jour du jeu\n");
-            for (int i = 0; i < MAX_CLIENTS; i++) {
-                if (client_fds[i] != INVALID_SOCKET) {
-                    send(client_fds[i], buffer, (int)strlen(buffer), 0);
+        for (int i = 0; i < MAX_CLIENTS; i++) {
+            if (client_fds[i] != INVALID_SOCKET) {
+                memset(buffer, 0, sizeof(buffer));
+                result = recv(client_fds[i], buffer, sizeof(buffer), 0);
+                if (result > 0) {
+                    handleIncomingMessage(netState, buffer, result);
+                }
+                else if (result == 0) {
+                    printf("Client disconnected\n");
+                    closesocket(client_fds[i]);
+                    client_fds[i] = INVALID_SOCKET;
+                    game->connectedClients-- ;
+                    sendPlayerCount(game->networkState, game->connectedClients);
+                }
+                else {
+                    int err = WSAGetLastError();
+                    if (err != WSAEWOULDBLOCK) {
+                        printf("recv failed: %d\n", err);
+                        closesocket(client_fds[i]);
+                        client_fds[i] = INVALID_SOCKET;
+                        game->connectedClients-- ;
+                        sendPlayerCount(game->networkState, game->connectedClients);
+                    }
                 }
             }
         }
 
-        // Sleep to avoid consuming too much CPU
+        sendQueuedMessagesToAllClients(netState, client_fds);
+
         Sleep(100);
     }
 
@@ -128,52 +180,3 @@ DWORD WINAPI server_thread(LPVOID data) {
     free(threadData);
     return 0;
 }
-
-
-// Function to send game updates from server to all clients
-void sendGameUpdate(Jeu* game, SOCKET* client_fds, int nb_clients, const char* update) {
-    if (!game->isConnected || !game->networkReady || game->modeJeu != 2) {
-        return;
-    }
-
-    for (int i = 0; i < MAX_CLIENTS; i++) {
-        if (client_fds[i] != INVALID_SOCKET) {
-            send(client_fds[i], update, (int)strlen(update), 0);
-        }
-    }
-}
-
-// Initialize server mode and create a server thread
-int initServerMode(Jeu* game) {
-    HANDLE thread_handle;
-    SOCKET* client_fds = (SOCKET*)malloc(MAX_CLIENTS * sizeof(SOCKET));
-    int* nb_clients = (int*)malloc(sizeof(int));
-
-    *nb_clients = 0;
-
-    // Initialize client sockets array
-    for (int i = 0; i < MAX_CLIENTS; i++) {
-        client_fds[i] = INVALID_SOCKET;
-    }
-
-    NetworkThreadData* threadData = (NetworkThreadData*)malloc(sizeof(NetworkThreadData));
-    threadData->game = game;
-    threadData->client_fds = client_fds;
-    threadData->nb_clients = nb_clients;
-
-    thread_handle = CreateThread(NULL, 0, server_thread, threadData, 0, NULL);
-    if (thread_handle == NULL) {
-        printf("Failed to create server thread\n");
-        free(client_fds);
-        free(nb_clients);
-        free(threadData);
-        return 0;
-    }
-
-    // We don't need to keep the handle since the thread will clean itself up
-    CloseHandle(thread_handle);
-
-    game->networkReady = true;
-    return 1;
-}
-
